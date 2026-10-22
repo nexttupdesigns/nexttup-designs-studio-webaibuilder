@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Eye, Code2, FolderTree, Monitor, Smartphone, Tablet, Check, Copy } from 'lucide-react';
+import { Eye, Code2, FolderTree, Monitor, Smartphone, Tablet, Check, Copy, Download } from 'lucide-react';
 import type { ProjectFile } from '@/types';
 
 interface PreviewPaneProps {
@@ -15,6 +15,8 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
   const [tab, setTab] = useState<Tab>('preview');
   const [viewport, setViewport] = useState<Viewport>('desktop');
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
+  const [downloadError, setDownloadError] = useState('');
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
 
   const srcDoc = useMemo(() => {
@@ -28,11 +30,35 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
     mobile: '375px',
   };
 
-  const handleCopyCode = () => {
+  const handleCopyCode = async () => {
     if (html) {
-      navigator.clipboard.writeText(html);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopyError('');
+      try {
+        await navigator.clipboard.writeText(html);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        setCopied(false);
+        setCopyError('Clipboard access is unavailable in this browser.');
+      }
+    }
+  };
+
+  const handleDownload = () => {
+    if (!html) return;
+    setDownloadError('');
+    try {
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'index.html';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch {
+      setDownloadError('Could not download the HTML file in this browser.');
     }
   };
 
@@ -72,24 +98,44 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
           <TabButton active={tab === 'files'} onClick={() => setTab('files')} icon={FolderTree} label="Files" />
         </div>
 
-        {tab === 'preview' && (
-          <div className="flex items-center gap-1">
-            <ViewportButton active={viewport === 'desktop'} onClick={() => setViewport('desktop')} icon={Monitor} />
-            <ViewportButton active={viewport === 'tablet'} onClick={() => setViewport('tablet')} icon={Tablet} />
-            <ViewportButton active={viewport === 'mobile'} onClick={() => setViewport('mobile')} icon={Smartphone} />
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          {tab === 'preview' && (
+            <>
+              <ViewportButton label="Desktop preview" active={viewport === 'desktop'} onClick={() => setViewport('desktop')} icon={Monitor} />
+              <ViewportButton label="Tablet preview" active={viewport === 'tablet'} onClick={() => setViewport('tablet')} icon={Tablet} />
+              <ViewportButton label="Mobile preview" active={viewport === 'mobile'} onClick={() => setViewport('mobile')} icon={Smartphone} />
+            </>
+          )}
 
-        {tab === 'code' && (
+          {tab === 'code' && (
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              aria-label="Copy HTML source"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-electric-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          )}
+
           <button
-            onClick={handleCopyCode}
+            type="button"
+            onClick={handleDownload}
+            aria-label="Download index.html"
+            title="Download generated HTML"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-electric-400" /> : <Copy className="w-3.5 h-3.5" />}
-            {copied ? 'Copied' : 'Copy'}
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Download</span>
           </button>
-        )}
+        </div>
       </div>
+      {(copyError || downloadError) && (
+        <p role="alert" className="border-b border-white/[0.06] px-4 py-2 text-xs text-red-300">
+          {copyError || downloadError}
+        </p>
+      )}
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -103,7 +149,8 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
                 srcDoc={srcDoc}
                 title="Website Preview"
                 className="w-full h-full border-0"
-                sandbox="allow-scripts allow-same-origin"
+                sandbox="allow-scripts"
+                referrerPolicy="no-referrer"
               />
             </div>
           </div>
@@ -140,7 +187,7 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
                   <span>{selectedFile.size}</span>
                 </div>
                 <p className="text-xs text-slate-600 mt-3 leading-relaxed">
-                  This file is part of your generated project. Switch to the Code tab to view the full HTML source.
+                  This is the generated HTML file. Switch to the Code tab to view its source.
                 </p>
               </div>
             )}
@@ -165,6 +212,8 @@ function TabButton({
   return (
     <button
       onClick={onClick}
+      type="button"
+      aria-pressed={active}
       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
         active
           ? 'bg-white/[0.06] text-white'
@@ -181,14 +230,20 @@ function ViewportButton({
   active,
   onClick,
   icon: Icon,
+  label,
 }: {
   active: boolean;
   onClick: () => void;
   icon: typeof Monitor;
+  label: string;
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
       className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
         active
           ? 'bg-electric-500/15 text-electric-400 border border-electric-500/20'

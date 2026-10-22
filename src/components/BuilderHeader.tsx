@@ -1,12 +1,14 @@
-import { Plus, Sparkles } from 'lucide-react';
+import { LogOut, Plus, Sparkles } from 'lucide-react';
 
 interface BuilderHeaderProps {
   onNewProject: () => void;
   onLogoClick: () => void;
   showNewButton: boolean;
+  onSignOut: () => void;
+  signedInAs: string;
 }
 
-export function BuilderHeader({ onNewProject, onLogoClick, showNewButton }: BuilderHeaderProps) {
+export function BuilderHeader({ onNewProject, onLogoClick, showNewButton, onSignOut, signedInAs }: BuilderHeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-ink-900/80 backdrop-blur-xl">
       <div className="px-5 lg:px-8 h-14 flex items-center justify-between">
@@ -26,7 +28,8 @@ export function BuilderHeader({ onNewProject, onLogoClick, showNewButton }: Buil
           </div>
         </button>
 
-        {showNewButton && (
+        <div className="flex items-center gap-3">
+          {showNewButton && (
           <button
             onClick={onNewProject}
             className="group relative inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white overflow-hidden rounded-lg"
@@ -36,14 +39,23 @@ export function BuilderHeader({ onNewProject, onLogoClick, showNewButton }: Buil
               <Plus className="w-4 h-4" /> New Project
             </span>
           </button>
-        )}
+          )}
 
-        {!showNewButton && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass">
-            <Sparkles className="w-3.5 h-3.5 text-violet-400" />
-            <span className="text-xs text-slate-400 font-medium">AI Builder</span>
-          </div>
-        )}
+          {!showNewButton && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass">
+              <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+              <span className="text-xs text-slate-400 font-medium">Local templates</span>
+            </div>
+          )}
+          <span className="hidden max-w-40 truncate text-xs text-slate-500 sm:block">{signedInAs}</span>
+          <button
+            onClick={onSignOut}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-slate-400 hover:bg-white/[0.04] hover:text-white"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Sign out</span>
+          </button>
+        </div>
       </div>
     </header>
   );

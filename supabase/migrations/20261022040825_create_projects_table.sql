@@ -12,10 +12,11 @@
   - `created_at` (timestamptz, default now())
   - `updated_at` (timestamptz, default now())
 
-2. Security
+2. Security (initial policy, superseded by the private-projects migration)
 - Enable RLS on `projects`.
-- This is a single-tenant app (no sign-in screen), so allow anon + authenticated full CRUD.
-- `USING (true)` is acceptable because the data is intentionally public/shared (no auth).
+- This initial migration grants anon + authenticated CRUD so the table can be created.
+- Apply `20261022050000_private_user_projects.sql` after this migration to remove anonymous access
+  and restrict rows to their authenticated owner.
 
 3. Notes
 - The `messages` jsonb array stores conversation history: [{role, content, timestamp}]

@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, Sparkles, User } from 'lucide-react';
 import type { ChatMessage } from '@/types';
-import { ProgressTracker } from './ProgressTracker';
-import type { BuildTask } from '@/types';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSendMessage: (message: string) => void;
   isBuilding: boolean;
-  tasks: BuildTask[];
-  showProgress: boolean;
   error: string | null;
 }
 
@@ -17,8 +13,6 @@ export function ChatPanel({
   messages,
   onSendMessage,
   isBuilding,
-  tasks,
-  showProgress,
   error,
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
@@ -51,19 +45,13 @@ export function ChatPanel({
           <MessageBubble key={i} message={msg} />
         ))}
 
-        {showProgress && (
-          <div className="px-1">
-            <ProgressTracker tasks={tasks} />
-          </div>
-        )}
-
         {error && (
           <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3">
             <p className="text-xs text-red-400 leading-relaxed">{error}</p>
           </div>
         )}
 
-        {isBuilding && !showProgress && (
+        {isBuilding && (
           <div className="flex items-center gap-2 text-xs text-slate-500 px-1">
             <div className="flex gap-1">
               {[0, 1, 2].map((i) => (
@@ -74,7 +62,7 @@ export function ChatPanel({
                 />
               ))}
             </div>
-            AI is working...
+            Working on the local template…
           </div>
         )}
       </div>
@@ -126,7 +114,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[10px] font-medium text-slate-500">
-            {isUser ? 'You' : 'AI Builder'}
+            {isUser ? 'You' : 'Template editor'}
           </span>
         </div>
         <div
