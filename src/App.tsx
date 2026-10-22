@@ -263,6 +263,50 @@ function App() {
     }
   };
 
+  const handleRenameProject = async (id: string, title: string): Promise<boolean> => {
+    if (!supabase || !session) return false;
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) {
+      setError('Project name cannot be empty.');
+      return false;
+    }
+    if (normalizedTitle.length > 100) {
+      setError('Project names must be 100 characters or fewer.');
+      return false;
+    }
+
+    try {
+      const updatedAt = new Date().toISOString();
+      const { data, error: renameError } = await supabase
+        .from('projects')
+        .update({ title: normalizedTitle, updated_at: updatedAt })
+        .eq('id', id)
+        .eq('owner_id', session.user.id)
+        .select('id, title, updated_at')
+        .maybeSingle();
+
+      if (renameError) throw renameError;
+      if (!data) throw new Error('The project was not found for this account.');
+
+      setProjects((prev) => prev.map((project) => (
+        project.id === id
+          ? { ...project, title: data.title, updated_at: data.updated_at }
+          : project
+      )));
+      setCurrentProject((project) => (
+        project?.id === id
+          ? { ...project, title: data.title, updated_at: data.updated_at }
+          : project
+      ));
+      setError(null);
+      return true;
+    } catch (renameError) {
+      console.error('Failed to rename project:', renameError);
+      setError('Could not rename the project. Please try again.');
+      return false;
+    }
+  };
+
   const handleNewProject = () => {
     setCurrentProject(null);
     setMessages([]);
@@ -305,6 +349,7 @@ function App() {
           onCreateProject={handleCreateProject}
           onOpenProject={handleOpenProject}
           onDeleteProject={handleDeleteProject}
+          onRenameProject={handleRenameProject}
           loading={creatingProject}
           projectsLoading={loadingProjects}
           appError={error}

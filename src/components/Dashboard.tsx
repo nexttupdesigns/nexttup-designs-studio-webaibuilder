@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Send, FileCode2, Clock, ArrowRight, Trash2 } from 'lucide-react';
+import { Sparkles, Send, FileCode2, Clock, ArrowRight, Trash2, Pencil, Check, X } from 'lucide-react';
 import type { Project } from '@/types';
 
 interface DashboardProps {
@@ -7,6 +7,7 @@ interface DashboardProps {
   onCreateProject: (prompt: string) => void;
   onOpenProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
+  onRenameProject: (id: string, title: string) => Promise<boolean>;
   loading: boolean;
   projectsLoading: boolean;
   appError: string | null;
@@ -24,6 +25,7 @@ export function Dashboard({
   onCreateProject,
   onOpenProject,
   onDeleteProject,
+  onRenameProject,
   loading,
   projectsLoading,
   appError,
@@ -158,6 +160,7 @@ export function Dashboard({
                   project={project}
                   onOpen={() => onOpenProject(project)}
                   onDelete={() => onDeleteProject(project.id)}
+                  onRename={(title) => onRenameProject(project.id, title)}
                 />
               ))}
             </div>
@@ -181,48 +184,123 @@ function ProjectCard({
   project,
   onOpen,
   onDelete,
+  onRename,
 }: {
   project: Project;
   onOpen: () => void;
   onDelete: () => void;
+  onRename: (title: string) => Promise<boolean>;
 }) {
   const date = new Date(project.created_at);
   const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [title, setTitle] = useState(project.title);
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState('');
+
+  const cancelRename = () => {
+    setTitle(project.title);
+    setRenameError('');
+    setIsRenaming(false);
+  };
+
+  const saveRename = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextTitle = title.trim();
+    if (!nextTitle) {
+      setRenameError('Name is required.');
+      return;
+    }
+    setRenaming(true);
+    setRenameError('');
+    try {
+      if (await onRename(nextTitle)) {
+        setTitle(nextTitle);
+        setIsRenaming(false);
+      } else {
+        setRenameError('Could not save name.');
+      }
+    } finally {
+      setRenaming(false);
+    }
+  };
 
   return (
     <div className="group relative">
       <div className="absolute -inset-px rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-electric-500/20 to-violet-500/20" />
-      <div className="relative glass rounded-xl p-4 group-hover:bg-white/[0.05] transition-all duration-300 cursor-pointer" onClick={onOpen}>
+      <div className="relative glass rounded-xl p-4 group-hover:bg-white/[0.05] transition-all duration-300">
         <div className="flex items-start justify-between mb-3">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-electric-500/20 to-violet-500/20 border border-white/[0.08] flex items-center justify-center">
             <FileCode2 className="w-4 h-4 text-electric-400" />
           </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            aria-label={`Delete ${project.title}`}
-            title="Delete project"
-            className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-1">
+            {!isRenaming && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTitle(project.title);
+                  setIsRenaming(true);
+                  setRenameError('');
+                }}
+                aria-label={`Rename ${project.title}`}
+                title="Rename project"
+                className="text-slate-600 hover:text-white transition-all p-1"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label={`Delete ${project.title}`}
+              title="Delete project"
+              className="text-slate-600 hover:text-red-400 transition-all p-1"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+        {isRenaming ? (
+          <form onSubmit={saveRename} className="space-y-2">
+            <label htmlFor={`project-title-${project.id}`} className="sr-only">Project name</label>
+            <input
+              id={`project-title-${project.id}`}
+              autoFocus
+              maxLength={100}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              disabled={renaming}
+              className="w-full rounded-md border border-white/10 bg-ink-900/70 px-2 py-1.5 text-sm text-white outline-none focus:border-electric-500/60 disabled:opacity-50"
+              aria-invalid={Boolean(renameError)}
+            />
+            {renameError && <p role="alert" className="text-[10px] text-red-400">{renameError}</p>}
+            <div className="flex items-center justify-end gap-1">
+              <button type="button" onClick={cancelRename} disabled={renaming} aria-label="Cancel rename" title="Cancel" className="rounded-md p-1.5 text-slate-500 hover:text-white disabled:opacity-50">
+                <X className="h-3.5 w-3.5" />
+              </button>
+              <button type="submit" disabled={renaming || !title.trim()} aria-label="Save project name" title="Save name" className="rounded-md p-1.5 text-electric-400 hover:text-white disabled:opacity-50">
+                <Check className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button type="button" onClick={onOpen} aria-label={`Open ${project.title}`} className="block w-full text-left">
+            <h3 className="font-display font-semibold text-white text-sm tracking-tight mb-1 truncate">
+              {project.title}
+            </h3>
+            <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">
+              {project.prompt}
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-600 flex items-center gap-1">
+                <Clock className="w-3 h-3" /> {dateStr}
+              </span>
+              <span className="text-[10px] text-electric-400 font-medium flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                Open <ArrowRight className="w-3 h-3" />
+              </span>
+            </div>
           </button>
-        </div>
-        <h3 className="font-display font-semibold text-white text-sm tracking-tight mb-1 truncate">
-          {project.title}
-        </h3>
-        <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">
-          {project.prompt}
-        </p>
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] text-slate-600 flex items-center gap-1">
-            <Clock className="w-3 h-3" /> {dateStr}
-          </span>
-          <span className="text-[10px] text-electric-400 font-medium flex items-center gap-1 group-hover:gap-1.5 transition-all">
-            Open <ArrowRight className="w-3 h-3" />
-          </span>
-        </div>
+        )}
       </div>
     </div>
   );
