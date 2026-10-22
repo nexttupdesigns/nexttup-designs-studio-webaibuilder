@@ -13,6 +13,7 @@ export interface ProjectFile {
 
 export interface Project {
   id: string;
+  owner_id: string;
   title: string;
   prompt: string;
   html: string | null;
@@ -20,12 +21,4 @@ export interface Project {
   messages: ChatMessage[];
   created_at: string;
   updated_at: string;
-}
-
-export type ProjectStatus = 'building' | 'ready' | 'error';
-
-export interface BuildTask {
-  id: string;
-  label: string;
-  status: 'pending' | 'active' | 'done' | 'error';
 }

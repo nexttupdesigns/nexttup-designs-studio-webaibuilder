@@ -5,6 +5,7 @@ interface GenerationResult {
   files: ProjectFile[];
   title: string;
   summary: string;
+  changed: boolean;
 }
 
 interface ThemePalette {
@@ -237,49 +238,50 @@ function parseRequest(prompt: string): ParsedRequest {
   };
 }
 
-function slugify(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return entities[character];
+  });
 }
 
-function generateFiles(req: ParsedRequest, sections: string[]): ProjectFile[] {
-  const files: ProjectFile[] = [
-    { name: 'index.html', path: '/', language: 'html', size: '4.2 KB' },
-    { name: 'styles.css', path: '/css/', language: 'css', size: '6.8 KB' },
-    { name: 'script.js', path: '/js/', language: 'javascript', size: '2.1 KB' },
-  ];
-
-  if (sections.includes('menu')) {
-    files.push({ name: 'menu.html', path: '/pages/', language: 'html', size: '1.8 KB' });
-  }
-  if (sections.includes('portfolio') || sections.includes('products')) {
-    files.push({ name: 'gallery.html', path: '/pages/', language: 'html', size: '2.3 KB' });
-  }
-  if (sections.includes('contact')) {
-    files.push({ name: 'contact.html', path: '/pages/', language: 'html', size: '1.5 KB' });
-  }
-
-  files.push({ name: 'README.md', path: '/', language: 'markdown', size: '0.8 KB' });
-  return files;
+function generateFiles(html: string): ProjectFile[] {
+  const bytes = new TextEncoder().encode(html).length;
+  const size = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+  return [{ name: 'index.html', path: '/', language: 'html', size }];
 }
 
 function generateHTML(req: ParsedRequest): string {
   const { theme, name, sections, type } = req;
+  const safeName = escapeHtml(name);
   const navLinks = sections
     .filter((s) => s !== 'hero' && s !== 'footer' && s !== 'cta')
     .map((s) => `<a href="#${s}">${s.charAt(0).toUpperCase() + s.slice(1)}</a>`)
     .join('\n          ');
+  const actionTarget = sections.includes('contact')
+    ? '#contact'
+    : sections.includes('cta')
+      ? '#cta'
+      : '#footer';
+  const learnMoreTarget = sections.find((section) => !['hero', 'footer', 'cta'].includes(section)) || 'footer';
 
   const heroSubtitles: Record<string, string> = {
-    restaurant: 'Experience flavors crafted with passion. Fresh ingredients, warm ambiance, unforgettable meals.',
-    portfolio: 'Selected works and creative projects. Bringing ideas to life through design and code.',
-    business: 'Professional services tailored to your needs. We help your business grow and thrive.',
-    landing: 'The modern solution you have been waiting for. Powerful, intuitive, built for results.',
-    blog: 'Stories, insights, and ideas worth reading. Fresh perspectives on topics that matter.',
-    shop: 'Curated products for modern living. Quality you can feel, prices you will love.',
-    generic: 'A modern website built to showcase what you do best.',
+    restaurant: 'Add a short introduction to your restaurant, menu, and atmosphere.',
+    portfolio: 'Introduce your work and the kind of projects you take on.',
+    business: 'Add a concise description of your business and services.',
+    landing: 'Describe your product, who it helps, and what visitors can do next.',
+    blog: 'Add a short description of your publication and its topics.',
+    shop: 'Describe your store and the products you offer.',
+    generic: 'Add a short introduction to this website.',
   };
 
-  const heroTitle = `${name}`;
+  const heroTitle = safeName;
   const heroSubtitle = heroSubtitles[type] || heroSubtitles.generic;
 
   const sectionHTML = sections
@@ -294,7 +296,7 @@ function generateHTML(req: ParsedRequest): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${name} — Home</title>
+  <title>${safeName} — Home</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -344,6 +346,7 @@ function generateHTML(req: ParsedRequest): string {
       font-weight: 600; font-size: 0.875rem; cursor: pointer; border: none;
       transition: transform 0.2s, box-shadow 0.2s;
     }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
     .btn-primary { background: var(--primary); color: #fff; }
     .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
     .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
@@ -450,23 +453,23 @@ function generateHTML(req: ParsedRequest): string {
 <body>
     <nav>
       <div class="container">
-        <div class="logo"><span class="logo-dot"></span>${name}</div>
+        <div class="logo"><span class="logo-dot"></span>${safeName}</div>
         <div class="nav-links">
           ${navLinks}
         </div>
-        <button class="btn btn-primary" style="padding: 8px 20px;">Get Started</button>
+        <a class="btn btn-primary" style="padding: 8px 20px;" href="${actionTarget}">Get Started</a>
       </div>
     </nav>
 
       <section class="hero" id="hero">
         <div class="container">
           <div class="hero-content animate-in">
-            <div class="hero-badge"><span class="hero-badge-dot"></span>Welcome to ${name}</div>
+            <div class="hero-badge"><span class="hero-badge-dot"></span>Welcome to ${safeName}</div>
             <h1>${heroTitle.split(' ').slice(0, -1).join(' ')} <span>${heroTitle.split(' ').slice(-1)}</span></h1>
             <p>${heroSubtitle}</p>
             <div class="hero-btns">
-              <button class="btn btn-primary">Get Started</button>
-              <button class="btn btn-outline">Learn More</button>
+              <a class="btn btn-primary" href="${actionTarget}">Get Started</a>
+              <a class="btn btn-outline" href="#${learnMoreTarget}">Learn More</a>
             </div>
           </div>
         </div>
@@ -474,11 +477,11 @@ function generateHTML(req: ParsedRequest): string {
 
       ${sectionHTML}
 
-      <footer>
+      <footer id="footer">
         <div class="container">
           <div class="footer-grid">
             <div>
-              <div class="logo" style="margin-bottom: 12px;"><span class="logo-dot"></span>${name}</div>
+              <div class="logo" style="margin-bottom: 12px;"><span class="logo-dot"></span>${safeName}</div>
               <p style="color: var(--text-muted); font-size: 0.875rem; max-width: 320px;">${heroSubtitle}</p>
             </div>
             <div class="footer-links">
@@ -487,13 +490,12 @@ function generateHTML(req: ParsedRequest): string {
             </div>
             <div class="footer-links">
               <h4 style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; color: var(--text-muted);">Connect</h4>
-              <a href="#">hello@${slugify(name)}.com</a>
-              <a href="#">Twitter</a>
-              <a href="#">Instagram</a>
+              <span>Set your contact email</span>
+              <span>Set your social profile links</span>
             </div>
           </div>
           <div class="footer-bottom">
-            <span>&copy; ${year} ${name}. All rights reserved.</span>
+            <span>&copy; ${year} ${safeName}. All rights reserved.</span>
             <span>Built with Next Up Design Studio</span>
           </div>
         </div>
@@ -513,27 +515,28 @@ function generateHTML(req: ParsedRequest): string {
 }
 
 function generateSection(section: string, req: ParsedRequest): string {
-  const { theme, name } = req;
+  const { name } = req;
+  const safeName = escapeHtml(name);
 
   switch (section) {
     case 'menu':
       return `<section id="menu">
         <div class="container">
-          <div class="section-label">Our Menu</div>
-          <h2 class="section-title">Crafted with Care</h2>
-          <p class="section-desc">Every dish is prepared with fresh, locally-sourced ingredients.</p>
+          <div class="section-label">Menu</div>
+          <h2 class="section-title">Add your menu items</h2>
+          <p class="section-desc">Replace these placeholders with your actual items, descriptions, and prices.</p>
           <div class="grid-2">
             <div class="card">
-              <h3 style="margin-bottom: 16px;">Starters</h3>
-              <div class="menu-item"><div><div class="menu-item-name">Bruschetta</div><div class="menu-item-desc">Toasted bread, tomato, basil</div></div><div class="menu-item-price">$8</div></div>
-              <div class="menu-item"><div><div class="menu-item-name">Calamari</div><div class="menu-item-desc">Crispy squid, lemon aioli</div></div><div class="menu-item-price">$12</div></div>
-              <div class="menu-item"><div><div class="menu-item-name">Soup of the Day</div><div class="menu-item-desc">Ask your server</div></div><div class="menu-item-price">$7</div></div>
+              <h3 style="margin-bottom: 16px;">Category</h3>
+              <div class="menu-item"><div><div class="menu-item-name">Menu item</div><div class="menu-item-desc">Add a description</div></div><div class="menu-item-price">Set price</div></div>
+              <div class="menu-item"><div><div class="menu-item-name">Menu item</div><div class="menu-item-desc">Add a description</div></div><div class="menu-item-price">Set price</div></div>
+              <div class="menu-item"><div><div class="menu-item-name">Menu item</div><div class="menu-item-desc">Add a description</div></div><div class="menu-item-price">Set price</div></div>
             </div>
             <div class="card">
-              <h3 style="margin-bottom: 16px;">Mains</h3>
-              <div class="menu-item"><div><div class="menu-item-name">Grilled Salmon</div><div class="menu-item-desc">With seasonal vegetables</div></div><div class="menu-item-price">$24</div></div>
-              <div class="menu-item"><div><div class="menu-item-name">Truffle Pasta</div><div class="menu-item-desc">Handmade fettuccine, wild mushrooms</div></div><div class="menu-item-price">$22</div></div>
-              <div class="menu-item"><div><div class="menu-item-name">Ribeye Steak</div><div class="menu-item-desc">12oz, herb butter, fries</div></div><div class="menu-item-price">$32</div></div>
+              <h3 style="margin-bottom: 16px;">Category</h3>
+              <div class="menu-item"><div><div class="menu-item-name">Menu item</div><div class="menu-item-desc">Add a description</div></div><div class="menu-item-price">Set price</div></div>
+              <div class="menu-item"><div><div class="menu-item-name">Menu item</div><div class="menu-item-desc">Add a description</div></div><div class="menu-item-price">Set price</div></div>
+              <div class="menu-item"><div><div class="menu-item-name">Menu item</div><div class="menu-item-desc">Add a description</div></div><div class="menu-item-price">Set price</div></div>
             </div>
           </div>
         </div>
@@ -545,10 +548,10 @@ function generateSection(section: string, req: ParsedRequest): string {
           <div class="about-grid">
             <div>
               <div class="section-label">Our Story</div>
-              <h2 class="section-title">About ${name}</h2>
-              <p style="color: var(--text-muted); margin-bottom: 16px;">We started with a simple idea: to create something meaningful and lasting. What began as a passion project has grown into a trusted name in our community.</p>
-              <p style="color: var(--text-muted); margin-bottom: 24px;">Our team is dedicated to delivering excellence in everything we do. We believe in quality, creativity, and building lasting relationships with the people we serve.</p>
-              <button class="btn btn-outline">Learn More</button>
+              <h2 class="section-title">About ${safeName}</h2>
+              <p style="color: var(--text-muted); margin-bottom: 16px;">Add your story, background, or the reason this business exists.</p>
+              <p style="color: var(--text-muted); margin-bottom: 24px;">Replace this text with details that are true for your organization.</p>
+              <a class="btn btn-outline" href="#footer">More information</a>
             </div>
             <div class="about-visual"></div>
           </div>
@@ -560,11 +563,11 @@ function generateSection(section: string, req: ParsedRequest): string {
         <div class="container">
           <div class="section-label">What We Offer</div>
           <h2 class="section-title">Our Services</h2>
-          <p class="section-desc">Comprehensive solutions designed to meet your needs.</p>
+          <p class="section-desc">Describe the services you actually provide.</p>
           <div class="grid-3">
-            <div class="card"><div class="card-icon">&#9889;</div><h3>Strategy</h3><p>We help you define goals and build a clear path to achieve them.</p></div>
-            <div class="card"><div class="card-icon">&#127919;</div><h3>Design</h3><p>Beautiful, functional designs that reflect your brand identity.</p></div>
-            <div class="card"><div class="card-icon">&#128640;</div><h3>Delivery</h3><p>Fast, reliable execution with ongoing support and maintenance.</p></div>
+            <div class="card"><div class="card-icon">&#9889;</div><h3>Service name</h3><p>Add a short, accurate description.</p></div>
+            <div class="card"><div class="card-icon">&#127919;</div><h3>Service name</h3><p>Add a short, accurate description.</p></div>
+            <div class="card"><div class="card-icon">&#128640;</div><h3>Service name</h3><p>Add a short, accurate description.</p></div>
           </div>
         </div>
       </section>`;
@@ -574,11 +577,11 @@ function generateSection(section: string, req: ParsedRequest): string {
         <div class="container">
           <div class="section-label">Selected Work</div>
           <h2 class="section-title">Featured Projects</h2>
-          <p class="section-desc">A selection of work we are proud of.</p>
+          <p class="section-desc">Replace the sample cards with real projects and descriptions.</p>
           <div class="grid-3">
-            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 160px;"></div><h3>Project Alpha</h3><p>A modern platform built for scale and performance.</p></div>
-            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 160px;"></div><h3>Project Beta</h3><p>An award-winning design system for a global brand.</p></div>
-            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 160px;"></div><h3>Project Gamma</h3><p>A data-driven dashboard powering real-time decisions.</p></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 160px;"></div><h3>Project title</h3><p>Add a short project description.</p></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 160px;"></div><h3>Project title</h3><p>Add a short project description.</p></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 160px;"></div><h3>Project title</h3><p>Add a short project description.</p></div>
           </div>
         </div>
       </section>`;
@@ -588,12 +591,12 @@ function generateSection(section: string, req: ParsedRequest): string {
         <div class="container">
           <div class="section-label">Why Choose Us</div>
           <h2 class="section-title">Everything You Need</h2>
-          <p class="section-desc">Powerful features that set us apart.</p>
+          <p class="section-desc">Add the real capabilities of your product or service.</p>
           <div class="grid-4">
-            <div class="card"><div class="card-icon">&#9889;</div><h3>Fast</h3><p>Lightning quick performance.</p></div>
-            <div class="card"><div class="card-icon">&#128274;</div><h3>Secure</h3><p>Enterprise-grade security.</p></div>
-            <div class="card"><div class="card-icon">&#128200;</div><h3>Scalable</h3><p>Grows with your needs.</p></div>
-            <div class="card"><div class="card-icon">&#127912;</div><h3>Custom</h3><p>Tailored to your brand.</p></div>
+            <div class="card"><div class="card-icon">&#9889;</div><h3>Feature name</h3><p>Add a verified description.</p></div>
+            <div class="card"><div class="card-icon">&#128274;</div><h3>Feature name</h3><p>Add a verified description.</p></div>
+            <div class="card"><div class="card-icon">&#128200;</div><h3>Feature name</h3><p>Add a verified description.</p></div>
+            <div class="card"><div class="card-icon">&#127912;</div><h3>Feature name</h3><p>Add a verified description.</p></div>
           </div>
         </div>
       </section>`;
@@ -602,11 +605,11 @@ function generateSection(section: string, req: ParsedRequest): string {
       return `<section id="testimonials">
         <div class="container">
           <div class="section-label">Testimonials</div>
-          <h2 class="section-title">What People Say</h2>
-          <p class="section-desc">Don't just take our word for it.</p>
+          <h2 class="section-title">Customer testimonials</h2>
+          <p class="section-desc">Use real quotes only, with permission from the people quoted.</p>
           <div class="grid-2">
-            <div class="card"><p style="font-size: 1rem; margin-bottom: 16px;">"Working with ${name} was a fantastic experience. They delivered beyond our expectations."</p><div style="font-weight: 600;">Alex Morgan<span style="color: var(--text-muted); font-weight: 400; font-size: 0.8125rem;"> — CEO, TechCorp</span></div></div>
-            <div class="card"><p style="font-size: 1rem; margin-bottom: 16px;">"Professional, creative, and reliable. The results speak for themselves."</p><div style="font-weight: 600;">Jamie Lee<span style="color: var(--text-muted); font-weight: 400; font-size: 0.8125rem;"> — Founder, StartupX</span></div></div>
+            <div class="card"><p style="font-size: 1rem; margin-bottom: 16px;">Add an approved customer quote here.</p><div style="font-weight: 600;">Customer name<span style="color: var(--text-muted); font-weight: 400; font-size: 0.8125rem;"> — Role or company</span></div></div>
+            <div class="card"><p style="font-size: 1rem; margin-bottom: 16px;">Add an approved customer quote here.</p><div style="font-weight: 600;">Customer name<span style="color: var(--text-muted); font-weight: 400; font-size: 0.8125rem;"> — Role or company</span></div></div>
           </div>
         </div>
       </section>`;
@@ -616,11 +619,11 @@ function generateSection(section: string, req: ParsedRequest): string {
         <div class="container">
           <div class="section-label">Our Team</div>
           <h2 class="section-title">Meet the People</h2>
-          <p class="section-desc">The talented individuals behind ${name}.</p>
+          <p class="section-desc">The talented individuals behind ${safeName}.</p>
           <div class="grid-3">
-            <div class="card" style="text-align: center;"><div class="about-visual" style="border-radius: 50%; width: 80px; height: 80px; margin: 0 auto 16px;"></div><h3>Sam Rivera</h3><p>Founder & Creative Director</p></div>
-            <div class="card" style="text-align: center;"><div class="about-visual" style="border-radius: 50%; width: 80px; height: 80px; margin: 0 auto 16px;"></div><h3>Pat Kim</h3><p>Lead Designer</p></div>
-            <div class="card" style="text-align: center;"><div class="about-visual" style="border-radius: 50%; width: 80px; height: 80px; margin: 0 auto 16px;"></div><h3>Jordan West</h3><p>Head of Operations</p></div>
+            <div class="card" style="text-align: center;"><div class="about-visual" style="border-radius: 50%; width: 80px; height: 80px; margin: 0 auto 16px;"></div><h3>Team member</h3><p>Add a role</p></div>
+            <div class="card" style="text-align: center;"><div class="about-visual" style="border-radius: 50%; width: 80px; height: 80px; margin: 0 auto 16px;"></div><h3>Team member</h3><p>Add a role</p></div>
+            <div class="card" style="text-align: center;"><div class="about-visual" style="border-radius: 50%; width: 80px; height: 80px; margin: 0 auto 16px;"></div><h3>Team member</h3><p>Add a role</p></div>
           </div>
         </div>
       </section>`;
@@ -630,11 +633,11 @@ function generateSection(section: string, req: ParsedRequest): string {
         <div class="container">
           <div class="section-label">Pricing</div>
           <h2 class="section-title">Simple, Transparent Plans</h2>
-          <p class="section-desc">Choose the plan that works for you.</p>
+          <p class="section-desc">Replace these placeholders with your actual plans and prices.</p>
           <div class="grid-3">
-            <div class="card"><h3>Starter</h3><div class="price">$9/mo</div><p style="margin-bottom: 16px;">Perfect for getting started.</p><button class="btn btn-outline" style="width: 100%;">Choose</button></div>
-            <div class="card" style="border-color: var(--primary);"><div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px; font-weight: 600;">POPULAR</div><h3>Pro</h3><div class="price">$29/mo</div><p style="margin-bottom: 16px;">For growing teams.</p><button class="btn btn-primary" style="width: 100%;">Choose</button></div>
-            <div class="card"><h3>Enterprise</h3><div class="price">$99/mo</div><p style="margin-bottom: 16px;">Custom solutions at scale.</p><button class="btn btn-outline" style="width: 100%;">Contact Us</button></div>
+            <div class="card"><h3>Plan name</h3><div class="price">Set price</div><p style="margin-bottom: 16px;">Add a description of what is included.</p><button class="btn btn-outline" style="width: 100%;" type="button" disabled>Checkout not connected</button></div>
+            <div class="card"><h3>Plan name</h3><div class="price">Set price</div><p style="margin-bottom: 16px;">Add a description of what is included.</p><button class="btn btn-outline" style="width: 100%;" type="button" disabled>Checkout not connected</button></div>
+            <div class="card"><h3>Plan name</h3><div class="price">Set price</div><p style="margin-bottom: 16px;">Add a description of what is included.</p><button class="btn btn-outline" style="width: 100%;" type="button" disabled>Checkout not connected</button></div>
           </div>
         </div>
       </section>`;
@@ -644,12 +647,12 @@ function generateSection(section: string, req: ParsedRequest): string {
         <div class="container">
           <div class="section-label">Shop</div>
           <h2 class="section-title">Featured Products</h2>
-          <p class="section-desc">Handpicked items our customers love.</p>
+          <p class="section-desc">Add your products, accurate prices, and a connected store to accept orders.</p>
           <div class="grid-4">
-            <div class="card"><div class="about-visual" style="margin-bottom: 12px; min-height: 140px;"></div><h3>Product One</h3><div class="price" style="font-size: 1.125rem; margin: 4px 0;">$29</div><button class="btn btn-outline" style="width: 100%; padding: 8px;">Add to Cart</button></div>
-            <div class="card"><div class="about-visual" style="margin-bottom: 12px; min-height: 140px;"></div><h3>Product Two</h3><div class="price" style="font-size: 1.125rem; margin: 4px 0;">$39</div><button class="btn btn-outline" style="width: 100%; padding: 8px;">Add to Cart</button></div>
-            <div class="card"><div class="about-visual" style="margin-bottom: 12px; min-height: 140px;"></div><h3>Product Three</h3><div class="price" style="font-size: 1.125rem; margin: 4px 0;">$49</div><button class="btn btn-outline" style="width: 100%; padding: 8px;">Add to Cart</button></div>
-            <div class="card"><div class="about-visual" style="margin-bottom: 12px; min-height: 140px;"></div><h3>Product Four</h3><div class="price" style="font-size: 1.125rem; margin: 4px 0;">$59</div><button class="btn btn-outline" style="width: 100%; padding: 8px;">Add to Cart</button></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 12px; min-height: 140px;"></div><h3>Product name</h3><div class="price" style="font-size: 1.125rem; margin: 4px 0;">Set price</div><button class="btn btn-outline" style="width: 100%; padding: 8px;" type="button" disabled>Store not connected</button></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 12px; min-height: 140px;"></div><h3>Product name</h3><div class="price" style="font-size: 1.125rem; margin: 4px 0;">Set price</div><button class="btn btn-outline" style="width: 100%; padding: 8px;" type="button" disabled>Store not connected</button></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 12px; min-height: 140px;"></div><h3>Product name</h3><div class="price" style="font-size: 1.125rem; margin: 4px 0;">Set price</div><button class="btn btn-outline" style="width: 100%; padding: 8px;" type="button" disabled>Store not connected</button></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 12px; min-height: 140px;"></div><h3>Product name</h3><div class="price" style="font-size: 1.125rem; margin: 4px 0;">Set price</div><button class="btn btn-outline" style="width: 100%; padding: 8px;" type="button" disabled>Store not connected</button></div>
           </div>
         </div>
       </section>`;
@@ -659,11 +662,11 @@ function generateSection(section: string, req: ParsedRequest): string {
         <div class="container">
           <div class="section-label">Blog</div>
           <h2 class="section-title">Latest Articles</h2>
-          <p class="section-desc">Insights, stories, and ideas worth reading.</p>
+          <p class="section-desc">Replace these examples with your real articles and publication dates.</p>
           <div class="grid-3">
-            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 120px;"></div><div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">Oct 2026</div><h3>Getting Started with Design</h3><p>A beginner's guide to thinking like a designer.</p></div>
-            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 120px;"></div><div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">Oct 2026</div><h3>The Power of Simplicity</h3><p>Why less is often more in modern web design.</p></div>
-            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 120px;"></div><div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">Sep 2026</div><h3>Building for Speed</h3><p>Performance tips that actually make a difference.</p></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 120px;"></div><div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">Publication date</div><h3>Article title</h3><p>Add a short article summary.</p></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 120px;"></div><div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">Publication date</div><h3>Article title</h3><p>Add a short article summary.</p></div>
+            <div class="card"><div class="about-visual" style="margin-bottom: 16px; min-height: 120px;"></div><div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">Publication date</div><h3>Article title</h3><p>Add a short article summary.</p></div>
           </div>
         </div>
       </section>`;
@@ -672,10 +675,10 @@ function generateSection(section: string, req: ParsedRequest): string {
       return `<section id="stats">
         <div class="container">
           <div class="grid-4">
-            <div class="stat"><div class="stat-number">500+</div><div class="stat-label">Projects</div></div>
-            <div class="stat"><div class="stat-number">50+</div><div class="stat-label">Clients</div></div>
-            <div class="stat"><div class="stat-number">15</div><div class="stat-label">Awards</div></div>
-            <div class="stat"><div class="stat-number">99%</div><div class="stat-label">Satisfaction</div></div>
+            <div class="stat"><div class="stat-number">—</div><div class="stat-label">Add metric</div></div>
+            <div class="stat"><div class="stat-number">—</div><div class="stat-label">Add metric</div></div>
+            <div class="stat"><div class="stat-number">—</div><div class="stat-label">Add metric</div></div>
+            <div class="stat"><div class="stat-number">—</div><div class="stat-label">Add metric</div></div>
           </div>
         </div>
       </section>`;
@@ -686,9 +689,9 @@ function generateSection(section: string, req: ParsedRequest): string {
           <div class="section-label">FAQ</div>
           <h2 class="section-title">Frequently Asked Questions</h2>
           <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 32px;">
-            <div class="card"><h3 style="margin-bottom: 8px;">How do I get started?</h3><p>Simply reach out through our contact form and we'll guide you through the process.</p></div>
-            <div class="card"><h3 style="margin-bottom: 8px;">What are your hours?</h3><p>We are available Monday through Friday, 9am to 6pm.</p></div>
-            <div class="card"><h3 style="margin-bottom: 8px;">Do you offer support?</h3><p>Yes, we provide ongoing support for all our clients.</p></div>
+            <div class="card"><h3 style="margin-bottom: 8px;">Add a common question</h3><p>Write an accurate answer for your visitors.</p></div>
+            <div class="card"><h3 style="margin-bottom: 8px;">Add a common question</h3><p>Write an accurate answer for your visitors.</p></div>
+            <div class="card"><h3 style="margin-bottom: 8px;">Add a common question</h3><p>Write an accurate answer for your visitors.</p></div>
           </div>
         </div>
       </section>`;
@@ -697,9 +700,9 @@ function generateSection(section: string, req: ParsedRequest): string {
       return `<section id="cta">
         <div class="container">
           <div class="cta-box">
-            <h2 class="section-title" style="margin-bottom: 16px;">Ready to Get Started?</h2>
-            <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 32px;">Join us today and experience the difference. Your next big thing starts here.</p>
-            <button class="btn btn-primary" style="padding: 14px 36px; font-size: 1rem;">Get Started Now</button>
+            <h2 class="section-title" style="margin-bottom: 16px;">Add a call to action</h2>
+            <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 32px;">Explain what visitors can do next.</p>
+            <a class="btn btn-primary" href="${req.sections.includes('contact') ? '#contact' : '#footer'}" style="padding: 14px 36px; font-size: 1rem;">Add action label</a>
           </div>
         </div>
       </section>`;
@@ -712,16 +715,17 @@ function generateSection(section: string, req: ParsedRequest): string {
           <p class="section-desc">We would love to hear from you.</p>
           <div class="contact-grid">
             <div class="contact-info">
-              <p><span>&#9993;</span> hello@${slugify(name)}.com</p>
-              <p><span>&#9742;</span> (555) 123-4567</p>
-              <p><span>&#128205;</span> 123 Main Street, City, State 12345</p>
-              <p><span>&#128337;</span> Mon-Fri, 9am-6pm</p>
+              <p><span>&#9993;</span> Add your email address</p>
+              <p><span>&#9742;</span> Add your phone number</p>
+              <p><span>&#128205;</span> Add your business address</p>
+              <p><span>&#128337;</span> Add your hours</p>
             </div>
-            <form onsubmit="event.preventDefault(); alert('Thank you! We will get back to you soon.');">
+            <form onsubmit="event.preventDefault();">
               <div class="form-group"><label>Name</label><input type="text" placeholder="Your name" required></div>
               <div class="form-group"><label>Email</label><input type="email" placeholder="your@email.com" required></div>
               <div class="form-group"><label>Message</label><textarea placeholder="Tell us about your project..." required></textarea></div>
-              <button type="submit" class="btn btn-primary" style="width: 100%;">Send Message</button>
+              <p style="color: var(--text-muted); font-size: 0.8125rem; margin-bottom: 12px;">Preview only — connect a form service before collecting messages.</p>
+              <button type="button" class="btn btn-outline" style="width: 100%;" disabled>Form not connected</button>
             </form>
           </div>
         </div>
@@ -732,24 +736,34 @@ function generateSection(section: string, req: ParsedRequest): string {
   }
 }
 
+function addNavigationLink(html: string, section: string): string {
+  const label = section.charAt(0).toUpperCase() + section.slice(1);
+  return html.replace(
+    /(<div class="nav-links">[\s\S]*?)(\s*<\/div>)/,
+    `$1\n          <a href="#${section}">${label}</a>$2`,
+  );
+}
+
 export function generateWebsite(prompt: string): GenerationResult {
   const req = parseRequest(prompt);
   const html = generateHTML(req);
-  const files = generateFiles(req, req.sections);
+  const files = generateFiles(html);
 
-  const summary = `I have created ${req.name} with the following sections: ${req.sections.filter((s) => s !== 'footer').join(', ')}. The design uses a ${req.colorHint} color palette with a ${req.tone} tone. You can preview it now or ask me to make changes.`;
+  const summary = `Created from local templates (no AI provider connected): ${req.sections.filter((s) => s !== 'footer').join(', ')} sections, ${req.colorHint} palette, ${req.tone} tone.`;
 
   return {
     html,
     files,
     title: req.name,
     summary,
+    changed: true,
   };
 }
 
 export function modifyWebsite(currentHtml: string, instruction: string): GenerationResult {
   let modifiedHtml = currentHtml;
   const lower = instruction.toLowerCase();
+  let changed = false;
 
   // Detect color change
   const colorMatches: Record<string, string> = {
@@ -785,6 +799,7 @@ export function modifyWebsite(currentHtml: string, instruction: string): Generat
         modifiedHtml = modifiedHtml.replace(/--font-heading:\s*[^;]+;/, `--font-heading: ${newTheme.fontHeading};`);
         modifiedHtml = modifiedHtml.replace(/--font-body:\s*[^;]+;/, `--font-body: ${newTheme.fontBody};`);
         themeChanged = true;
+        changed = true;
         themeName = color;
       }
       break;
@@ -792,15 +807,15 @@ export function modifyWebsite(currentHtml: string, instruction: string): Generat
   }
 
   // Detect title/name change
-  const titleMatch = lower.match(/(?:change|rename|set).*(?:title|name).*(?:to|as)\s+["']?([\w\s]+?)["']?(?:\.|,|$)/);
-  if (titleMatch) {
-    const newName = titleMatch[1].trim();
-    const oldTitleMatch = modifiedHtml.match(/<title>(.+?)<\/title>/);
-    if (oldTitleMatch) {
-      modifiedHtml = modifiedHtml.replace(/<title>(.+?)<\/title>/, `<title>${newName} — Home</title>`);
+  const titleMatch = instruction.match(/(?:change|rename|set)\b.*?\b(?:title|name)\b.*?\b(?:to|as)\b\s+(.+?)\s*[.!?]*$/i);
+  const requestedName = titleMatch?.[1].trim().replace(/^["']|["']$/g, '').trim();
+  if (requestedName) {
+    const newName = escapeHtml(requestedName);
+    const oldTitleMatch = modifiedHtml.match(/<title>(.+?) — Home<\/title>/);
+    if (oldTitleMatch?.[1]) {
+      modifiedHtml = modifiedHtml.split(oldTitleMatch[1]).join(newName);
+      changed = true;
     }
-    // Update logo text
-    modifiedHtml = modifiedHtml.replace(/(<div class="logo"><span class="logo-dot"><\/span>)(.+?)(<\/div>)/, `$1${newName}$3`);
     themeChanged = true;
   }
 
@@ -809,36 +824,46 @@ export function modifyWebsite(currentHtml: string, instruction: string): Generat
   if (lower.match(/add.*testimonial/) && !modifiedHtml.includes('id="testimonials"')) {
     const req = parseRequest(instruction);
     const testimonialHTML = generateSection('testimonials', { ...req, name: 'Your Site' });
-    modifiedHtml = modifiedHtml.replace(/(<footer>)/, `${testimonialHTML}\n\n      $1`);
+    modifiedHtml = modifiedHtml.replace(/(<footer(?:\s+[^>]*)?>)/, `${testimonialHTML}\n\n      $1`);
+    modifiedHtml = addNavigationLink(modifiedHtml, 'testimonials');
     addedSection = 'testimonials';
+    changed = true;
   }
   if (lower.match(/add.*pricing/) && !modifiedHtml.includes('id="pricing"')) {
     const req = parseRequest(instruction);
     const pricingHTML = generateSection('pricing', { ...req, name: 'Your Site' });
-    modifiedHtml = modifiedHtml.replace(/(<footer>)/, `${pricingHTML}\n\n      $1`);
+    modifiedHtml = modifiedHtml.replace(/(<footer(?:\s+[^>]*)?>)/, `${pricingHTML}\n\n      $1`);
+    modifiedHtml = addNavigationLink(modifiedHtml, 'pricing');
     addedSection = addedSection ? `${addedSection}, pricing` : 'pricing';
+    changed = true;
   }
   if (lower.match(/add.*faq/) && !modifiedHtml.includes('id="faq"')) {
     const req = parseRequest(instruction);
     const faqHTML = generateSection('faq', { ...req, name: 'Your Site' });
-    modifiedHtml = modifiedHtml.replace(/(<footer>)/, `${faqHTML}\n\n      $1`);
+    modifiedHtml = modifiedHtml.replace(/(<footer(?:\s+[^>]*)?>)/, `${faqHTML}\n\n      $1`);
+    modifiedHtml = addNavigationLink(modifiedHtml, 'faq');
     addedSection = addedSection ? `${addedSection}, FAQ` : 'FAQ';
+    changed = true;
   }
   if (lower.match(/add.*contact/) && !modifiedHtml.includes('id="contact"')) {
     const req = parseRequest(instruction);
     const contactHTML = generateSection('contact', { ...req, name: 'Your Site' });
-    modifiedHtml = modifiedHtml.replace(/(<footer>)/, `${contactHTML}\n\n      $1`);
+    modifiedHtml = modifiedHtml.replace(/(<footer(?:\s+[^>]*)?>)/, `${contactHTML}\n\n      $1`);
+    modifiedHtml = addNavigationLink(modifiedHtml, 'contact');
     addedSection = addedSection ? `${addedSection}, contact` : 'contact';
+    changed = true;
   }
 
   // Detect font change
   if (lower.match(/serif font|playfair|elegant font/)) {
     modifiedHtml = modifiedHtml.replace(/--font-heading:\s*[^;]+;/, `--font-heading: 'Playfair Display', serif;`);
     themeChanged = true;
+    changed = true;
   }
   if (lower.match(/sans.font|grotesk|modern font/)) {
     modifiedHtml = modifiedHtml.replace(/--font-heading:\s*[^;]+;/, `--font-heading: 'Space Grotesk', sans-serif;`);
     themeChanged = true;
+    changed = true;
   }
 
   // Detect background change to light
@@ -850,7 +875,10 @@ export function modifyWebsite(currentHtml: string, instruction: string): Generat
     modifiedHtml = modifiedHtml.replace(/--text-muted:\s*[^;]+;/, `--text-muted: #666666;`);
     modifiedHtml = modifiedHtml.replace(/--border:\s*[^;]+;/, `--border: rgba(0, 0, 0, 0.1);`);
     themeChanged = true;
+    changed = true;
   }
+
+  changed = modifiedHtml !== currentHtml;
 
   // Build summary
   const changes: string[] = [];
@@ -858,23 +886,19 @@ export function modifyWebsite(currentHtml: string, instruction: string): Generat
   if (titleMatch) changes.push(`updated the title`);
   if (addedSection) changes.push(`added a ${addedSection} section`);
   if (lower.match(/serif font|playfair/)) changes.push('switched to serif headings');
-  if (lower.match(/light background|light theme|light mode/)) changes.push('switched to a light background');
+  if (lower.match(/sans.font|grotesk|modern font/)) changes.push('switched to sans-serif headings');
+  if (lower.match(/light background|light theme|light mode|white background/)) changes.push('switched to a light background');
 
-  const summary = changes.length > 0
-    ? `I have ${changes.join(' and ')}. The preview has been updated — take a look and let me know if you'd like further adjustments.`
-    : `I have applied your requested changes to the website. The preview has been updated. Let me know what you'd like to adjust next.`;
+  const summary = changed && changes.length > 0
+    ? `Applied local template edits: ${changes.join(' and ')}.`
+    : `No changes were made. This local template editor supports palette, title, font, background, and adding testimonials, pricing, FAQ, or contact sections. No AI provider is connected.`;
 
   const oldTitleMatch = modifiedHtml.match(/<title>(.+?)\s—\s/);
   const title = oldTitleMatch ? oldTitleMatch[1] : 'Untitled';
 
-  const files: ProjectFile[] = [
-    { name: 'index.html', path: '/', language: 'html', size: `${(modifiedHtml.length / 1024).toFixed(1)} KB` },
-    { name: 'styles.css', path: '/css/', language: 'css', size: '6.8 KB' },
-    { name: 'script.js', path: '/js/', language: 'javascript', size: '2.1 KB' },
-    { name: 'README.md', path: '/', language: 'markdown', size: '0.8 KB' },
-  ];
+  const files = generateFiles(modifiedHtml);
 
-  return { html: modifiedHtml, files, title, summary };
+  return { html: modifiedHtml, files, title, summary, changed };
 }
 
 export function createInitialMessages(prompt: string, summary: string): ChatMessage[] {

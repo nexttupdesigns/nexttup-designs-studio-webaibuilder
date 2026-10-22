@@ -15,6 +15,7 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
   const [tab, setTab] = useState<Tab>('preview');
   const [viewport, setViewport] = useState<Viewport>('desktop');
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
 
   const srcDoc = useMemo(() => {
@@ -28,11 +29,17 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
     mobile: '375px',
   };
 
-  const handleCopyCode = () => {
+  const handleCopyCode = async () => {
     if (html) {
-      navigator.clipboard.writeText(html);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopyError('');
+      try {
+        await navigator.clipboard.writeText(html);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        setCopied(false);
+        setCopyError('Clipboard access is unavailable in this browser.');
+      }
     }
   };
 
@@ -90,6 +97,7 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
           </button>
         )}
       </div>
+      {copyError && <p role="alert" className="border-b border-white/[0.06] px-4 py-2 text-xs text-red-300">{copyError}</p>}
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -103,7 +111,8 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
                 srcDoc={srcDoc}
                 title="Website Preview"
                 className="w-full h-full border-0"
-                sandbox="allow-scripts allow-same-origin"
+                sandbox="allow-scripts"
+                referrerPolicy="no-referrer"
               />
             </div>
           </div>
@@ -140,7 +149,7 @@ export function PreviewPane({ html, files, isBuilding }: PreviewPaneProps) {
                   <span>{selectedFile.size}</span>
                 </div>
                 <p className="text-xs text-slate-600 mt-3 leading-relaxed">
-                  This file is part of your generated project. Switch to the Code tab to view the full HTML source.
+                  This is the generated HTML file. Switch to the Code tab to view its source.
                 </p>
               </div>
             )}

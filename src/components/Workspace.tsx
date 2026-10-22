@@ -1,17 +1,15 @@
-import { ArrowLeft, Save, Check, Loader2, MessageSquare, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { ArrowLeft, Save, Check, Loader2, MessageSquare, PanelRightClose, PanelRightOpen, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
-import type { Project, ChatMessage, BuildTask } from '@/types';
+import type { Project, ChatMessage } from '@/types';
 import { ChatPanel } from './ChatPanel';
 import { PreviewPane } from './PreviewPane';
 
 interface WorkspaceProps {
   project: Project;
   messages: ChatMessage[];
-  tasks: BuildTask[];
   isBuilding: boolean;
-  showProgress: boolean;
   error: string | null;
-  saveStatus: 'idle' | 'saving' | 'saved';
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   onSendMessage: (message: string) => void;
   onBack: () => void;
 }
@@ -19,9 +17,7 @@ interface WorkspaceProps {
 export function Workspace({
   project,
   messages,
-  tasks,
   isBuilding,
-  showProgress,
   error,
   saveStatus,
   onSendMessage,
@@ -61,6 +57,11 @@ export function Workspace({
                 <Save className="w-3 h-3" />
               </span>
             )}
+            {saveStatus === 'error' && (
+              <span className="flex items-center gap-1 text-[10px] text-red-400">
+                <AlertCircle className="w-3 h-3" /> Not saved
+              </span>
+            )}
           </div>
         </div>
 
@@ -96,8 +97,6 @@ export function Workspace({
                 messages={messages}
                 onSendMessage={onSendMessage}
                 isBuilding={isBuilding}
-                tasks={tasks}
-                showProgress={showProgress}
                 error={error}
               />
             </div>

@@ -8,6 +8,8 @@ interface DashboardProps {
   onOpenProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
   loading: boolean;
+  projectsLoading: boolean;
+  appError: string | null;
 }
 
 const examplePrompts = [
@@ -17,7 +19,15 @@ const examplePrompts = [
   'A professional business website for a law firm with services, team members, and contact info',
 ];
 
-export function Dashboard({ projects, onCreateProject, onOpenProject, onDeleteProject, loading }: DashboardProps) {
+export function Dashboard({
+  projects,
+  onCreateProject,
+  onOpenProject,
+  onDeleteProject,
+  loading,
+  projectsLoading,
+  appError,
+}: DashboardProps) {
   const [prompt, setPrompt] = useState('');
   const [error, setError] = useState('');
 
@@ -51,15 +61,21 @@ export function Dashboard({ projects, onCreateProject, onOpenProject, onDeletePr
         <div className="text-center mb-10 animate-fade-in">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-6">
             <Sparkles className="w-3.5 h-3.5 text-violet-400" />
-            <span className="text-xs font-medium text-slate-300 tracking-wide">AI-Powered Website Builder</span>
+            <span className="text-xs font-medium text-slate-300 tracking-wide">Local template builder · no AI provider connected</span>
           </div>
           <h1 className="font-display font-bold text-white text-3xl sm:text-4xl lg:text-5xl tracking-tight leading-tight">
             Describe it. We build it.
           </h1>
           <p className="mt-4 text-slate-400 text-base lg:text-lg max-w-xl mx-auto">
-            Tell us what you want in plain English and watch a working website come to life.
+            Describe a site and get a preview from built-in templates. Changes are limited to supported template edits.
           </p>
         </div>
+
+        {appError && (
+          <p role="alert" className="mb-5 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            {appError}
+          </p>
+        )}
 
         {/* Prompt box */}
         <div className="relative animate-fade-up" style={{ animationDelay: '0.1s' }}>
@@ -148,7 +164,7 @@ export function Dashboard({ projects, onCreateProject, onOpenProject, onDeletePr
           </div>
         )}
 
-        {projects.length === 0 && !loading && (
+        {projects.length === 0 && !projectsLoading && (
           <div className="mt-14 text-center animate-fade-up" style={{ animationDelay: '0.3s' }}>
             <div className="inline-flex items-center gap-2 text-slate-600 text-sm">
               <Clock className="w-4 h-4" />
@@ -186,6 +202,8 @@ function ProjectCard({
               e.stopPropagation();
               onDelete();
             }}
+            aria-label={`Delete ${project.title}`}
+            title="Delete project"
             className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1"
           >
             <Trash2 className="w-3.5 h-3.5" />
